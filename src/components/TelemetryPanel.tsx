@@ -16,9 +16,9 @@ export function TelemetryPanel() {
   }, []);
 
   return (
-    <div className="space-y-3">
+    <div className="w-full space-y-3">
       {stats && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label="Samples" value={String(stats.count)} />
           <Stat
             label="Median apply"
@@ -32,7 +32,7 @@ export function TelemetryPanel() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-[var(--color-card-border)]">
+      <div className="w-full overflow-hidden rounded-lg border border-[var(--color-card-border)]">
         <table className="w-full text-sm">
           <thead className="bg-black/5 dark:bg-white/5">
             <tr>

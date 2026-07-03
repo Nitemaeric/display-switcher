@@ -139,8 +139,8 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-[var(--color-card-border)] px-3 py-3">
+    <div className="flex h-screen flex-col">
+      <header className="shrink-0 border-b border-[var(--color-card-border)] px-3 py-3">
         <div className="mx-auto flex max-w-4xl items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-accent)] text-white">
@@ -167,23 +167,23 @@ function App() {
         </div>
       </header>
 
-      <main className="px-3 py-3">
-        <div className="mx-auto max-w-4xl">
+      <main className="flex min-h-0 flex-1 flex-col">
+        <div className="mx-auto flex w-full max-w-4xl min-h-0 flex-1 flex-col">
         {tab === "groups" ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+            <div className="sticky top-0 z-10 flex items-center justify-between bg-[var(--color-background)] px-3 py-3">
               <h2 className="text-base font-medium">Display groups</h2>
               <Button className="shrink-0" onClick={handleCreateGroup}>
                 <Plus size={16} /> Add group
               </Button>
             </div>
-
+            <div className="w-full px-3 pb-3">
             {config.groups.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-[var(--color-card-border)] py-3 text-center text-[var(--color-muted)]">
+              <div className="w-full rounded-xl border border-dashed border-[var(--color-card-border)] py-3 text-center text-[var(--color-muted)]">
                 No groups yet. Create one to get started.
               </div>
             ) : (
-              <div className="grid gap-3">
+              <div className="grid w-full gap-3">
                 {config.groups.map((group) => {
                   const hasDisplays = group.display_ids.length > 0;
                   const hasLayout = layoutStatus[group.id] ?? false;
@@ -193,7 +193,7 @@ function App() {
                     key={group.id}
                     role="button"
                     tabIndex={0}
-                    className="flex cursor-pointer items-center justify-between rounded-xl border border-[var(--color-card-border)] bg-[var(--color-card)] p-3 transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                    className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-[var(--color-card-border)] bg-[var(--color-card)] p-3 transition-colors hover:bg-black/5 dark:hover:bg-white/5"
                     onClick={() => setEditing(group)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
@@ -255,9 +255,11 @@ function App() {
                 })}
               </div>
             )}
-          </div>
+            </div>
+            </div>
         ) : (
-          <div className="space-y-3">
+          <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+            <div className="w-full space-y-3 px-3 py-3">
             <section className="form-section">
               <h2 className="text-base font-medium">Appearance</h2>
               <select
@@ -325,6 +327,7 @@ function App() {
               <h2 className="text-base font-medium">Performance</h2>
               <TelemetryPanel />
             </section>
+            </div>
           </div>
         )}
         </div>
