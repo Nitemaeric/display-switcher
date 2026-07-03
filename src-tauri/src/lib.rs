@@ -412,7 +412,7 @@ pub fn run() {
                     }
                 });
 
-                if config.settings.minimize_to_tray {
+                if config.settings.minimize_to_tray && config.onboarding_complete {
                     let _ = window.hide();
                 }
             }

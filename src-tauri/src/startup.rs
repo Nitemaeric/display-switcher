@@ -7,7 +7,8 @@ pub fn sync_launch_on_startup(app: &AppHandle, enabled: bool) -> Result<(), Stri
     let manager = app.autolaunch();
     if enabled {
         manager.enable().map_err(|e| e.to_string())?;
-    } else {
+    } else if manager.is_enabled().unwrap_or(false) {
+        // Only remove an existing Run key; deleting a missing value errors on Windows.
         manager.disable().map_err(|e| e.to_string())?;
     }
     Ok(())
