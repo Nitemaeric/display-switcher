@@ -1,5 +1,15 @@
 use tauri::AppHandle;
 
+pub const STARTUP_ARG: &str = "--startup";
+
+pub fn launched_at_login() -> bool {
+    std::env::args().any(|arg| arg == STARTUP_ARG)
+}
+
+pub fn should_start_hidden(minimize_to_tray: bool) -> bool {
+    launched_at_login() && minimize_to_tray
+}
+
 #[cfg(desktop)]
 pub fn sync_launch_on_startup(app: &AppHandle, enabled: bool) -> Result<(), String> {
     use tauri_plugin_autostart::ManagerExt;

@@ -267,11 +267,12 @@ function App() {
                     saveSettings({ minimize_to_tray: e.target.checked })
                   }
                 />
-                <span>Start minimized to tray</span>
+                <span>Start minimized to tray when launched at login</span>
               </label>
               <p className="text-sm text-[var(--color-muted)]">
-                The tray icon keeps hotkeys and gamepad chords active in the
-                background. Minimize-to-tray applies on the next launch.
+                Opening the app yourself always shows the config window. Closing
+                it hides the app to the tray while hotkeys and gamepad chords
+                keep running.
               </p>
             </section>
 

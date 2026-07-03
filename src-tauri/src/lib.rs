@@ -355,7 +355,7 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            None,
+            Some(vec![startup::STARTUP_ARG]),
         ))
         .manage(app_state.clone())
         .invoke_handler(tauri::generate_handler![
@@ -412,7 +412,7 @@ pub fn run() {
                     }
                 });
 
-                if config.settings.minimize_to_tray && config.onboarding_complete {
+                if startup::should_start_hidden(config.settings.minimize_to_tray) {
                     let _ = window.hide();
                 }
             }
