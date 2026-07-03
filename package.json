@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "bunx tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "icon": "tauri icon icon-concepts/concept-4-single-refresh.svg"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.18",

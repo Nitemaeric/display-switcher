@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="bg4" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e3a5f"/>
+    </linearGradient>
+    <linearGradient id="screenLight4" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="45%" stop-color="#e0f2fe"/>
+      <stop offset="100%" stop-color="#bae6fd"/>
+    </linearGradient>
+    <filter id="shadow4" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#000" flood-opacity="0.38"/>
+    </filter>
+    <filter id="badgeShadow4" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+    <!-- Chevron marker: 45° spread, 40px arms, stroke matches arc (32) -->
+    <marker id="chevronHead" viewBox="0 0 56 56" refX="40" refY="28" markerUnits="userSpaceOnUse" markerWidth="56" markerHeight="56" orient="auto">
+      <path d="M 3 13 L 40 28 L 3 43" fill="none" stroke="#fff" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- App icon background -->
+  <rect width="1024" height="1024" rx="224" fill="url(#bg4)"/>
+
+  <!-- Single light-screen monitor -->
+  <g filter="url(#shadow4)" transform="translate(192 210)">
+    <rect x="0" y="0" width="640" height="460" rx="36" fill="#334155"/>
+    <rect x="24" y="24" width="592" height="368" rx="22" fill="url(#screenLight4)"/>
+
+    <!-- Window chrome -->
+    <rect x="52" y="52" width="536" height="44" rx="10" fill="#fff"/>
+    <circle cx="78" cy="74" r="8" fill="#2563eb"/>
+    <circle cx="104" cy="74" r="8" fill="#60a5fa"/>
+    <circle cx="130" cy="74" r="8" fill="#93c5fd"/>
+
+    <!-- Content lines -->
+    <rect x="52" y="124" width="360" height="18" rx="9" fill="#fff" opacity="0.92"/>
+    <rect x="52" y="158" width="280" height="18" rx="9" fill="#fff" opacity="0.72"/>
+    <rect x="52" y="192" width="320" height="18" rx="9" fill="#fff" opacity="0.55"/>
+    <rect x="52" y="226" width="240" height="18" rx="9" fill="#fff" opacity="0.4"/>
+
+    <!-- Subtle window tiles -->
+    <rect x="52" y="280" width="168" height="88" rx="14" fill="#fff" opacity="0.38"/>
+    <rect x="236" y="280" width="168" height="88" rx="14" fill="#fff" opacity="0.28"/>
+    <rect x="420" y="280" width="168" height="88" rx="14" fill="#fff" opacity="0.22"/>
+
+    <!-- Switch / refresh badge — bottom-right screen corner -->
+    <g filter="url(#badgeShadow4)" transform="translate(446 222)">
+      <circle cx="170" cy="170" r="170" fill="#2563eb"/>
+      <circle cx="170" cy="170" r="148" fill="#1d4ed8"/>
+
+      <g stroke="#fff" stroke-width="32" stroke-linecap="butt" fill="none">
+        <path d="M 98 118 A 96 96 0 0 1 237 101" marker-end="url(#chevronHead)"/>
+        <path d="M 242 222 A 96 96 0 0 1 108 244" marker-end="url(#chevronHead)"/>
+      </g>
+    </g>
+
+    <!-- Stand -->
+    <rect x="252" y="460" width="136" height="32" rx="8" fill="#475569"/>
+    <rect x="196" y="492" width="248" height="24" rx="12" fill="#64748b"/>
+  </g>
+</svg>

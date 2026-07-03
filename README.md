@@ -13,7 +13,7 @@ Fast display group switching for Windows with global hotkeys, gamepad chords, sy
 ## Requirements
 
 - Windows 10/11
-- [Node.js](https://nodejs.org/) LTS
+- [Bun](https://bun.sh/) (package manager + script runner)
 - [Rust](https://rustup.rs/)
 - Visual Studio 2022 Build Tools (C++ workload) for native compilation
 
@@ -21,14 +21,22 @@ Fast display group switching for Windows with global hotkeys, gamepad chords, sy
 
 ```bash
 cd display-switcher
-npm install
-npm run tauri dev
+bun install
+bun run tauri dev
 ```
 
 ## Build installer
 
 ```bash
-npm run tauri build
+bun run tauri build
+```
+
+## Regenerate app icons
+
+Source: `icon-concepts/concept-4-single-refresh.svg`
+
+```bash
+bun run icon
 ```
 
 Output: `src-tauri/target/release/bundle/nsis/`

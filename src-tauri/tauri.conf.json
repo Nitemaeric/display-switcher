@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.danie.display-switcher",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "bun run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -24,10 +24,6 @@
     ],
     "security": {
       "csp": null
-    },
-    "trayIcon": {
-      "iconPath": "icons/icon.png",
-      "iconAsTemplate": true
     }
   },
   "bundle": {
