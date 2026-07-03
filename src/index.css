@@ -99,4 +99,16 @@ body {
   .form-section {
     @apply space-y-3;
   }
+
+  .form-checkbox-control {
+    @apply form-checkbox h-4 w-4 shrink-0 cursor-pointer rounded border transition-colors;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)];
+    border-color: var(--color-card-border);
+    background-color: var(--color-card);
+    color: var(--color-accent);
+  }
+
+  .form-check {
+    @apply flex cursor-pointer items-center gap-3 text-sm;
+  }
 }

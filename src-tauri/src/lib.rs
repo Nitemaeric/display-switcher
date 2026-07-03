@@ -5,6 +5,7 @@ mod display;
 mod gamepad;
 mod hotkeys;
 mod state;
+mod startup;
 mod steam;
 mod telemetry;
 mod window_chrome;
@@ -53,6 +54,7 @@ fn save_app_config(
     save_config(&config)?;
     state.set_config(config.clone());
     refresh_hotkeys_and_tray(&app, &config)?;
+    startup::sync_launch_on_startup(&app, config.settings.launch_on_startup)?;
     Ok(())
 }
 
@@ -351,6 +353,10 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .manage(app_state.clone())
         .invoke_handler(tauri::generate_handler![
             get_config,
@@ -375,6 +381,7 @@ pub fn run() {
             let config = app_state.get_config();
             setup_tray(app.handle(), &config)?;
             refresh_hotkeys_and_tray(app.handle(), &config)?;
+            startup::sync_launch_on_startup(app.handle(), config.settings.launch_on_startup)?;
 
             let app_handle = app.handle().clone();
             let emit_handle = app_handle.clone();

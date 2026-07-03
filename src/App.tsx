@@ -246,6 +246,36 @@ function App() {
             </section>
 
             <section className="form-section">
+              <h2 className="text-base font-medium">Startup</h2>
+              <label className="form-check">
+                <input
+                  type="checkbox"
+                  className="form-checkbox-control"
+                  checked={config.settings.launch_on_startup}
+                  onChange={(e) =>
+                    saveSettings({ launch_on_startup: e.target.checked })
+                  }
+                />
+                <span>Launch on Windows startup</span>
+              </label>
+              <label className="form-check">
+                <input
+                  type="checkbox"
+                  className="form-checkbox-control"
+                  checked={config.settings.minimize_to_tray}
+                  onChange={(e) =>
+                    saveSettings({ minimize_to_tray: e.target.checked })
+                  }
+                />
+                <span>Start minimized to tray</span>
+              </label>
+              <p className="text-sm text-[var(--color-muted)]">
+                The tray icon keeps hotkeys and gamepad chords active in the
+                background. Minimize-to-tray applies on the next launch.
+              </p>
+            </section>
+
+            <section className="form-section">
               <h2 className="text-base font-medium">Steam</h2>
               <input
                 className="form-input-control w-full"
