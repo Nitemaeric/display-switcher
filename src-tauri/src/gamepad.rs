@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use parking_lot::RwLock;
 
-use crate::config::{AppConfig, GamepadChord};
+use crate::config::{is_group_activatable, AppConfig, GamepadChord};
 
 #[derive(Clone)]
 pub struct GamepadManager {
@@ -114,6 +114,9 @@ impl GamepadManager {
                 let mut matched_group: Option<(String, u64)> = None;
 
                 for group in &cfg.groups {
+                    if !is_group_activatable(group) {
+                        continue;
+                    }
                     let Some(chord) = &group.gamepad_chord else {
                         continue;
                     };

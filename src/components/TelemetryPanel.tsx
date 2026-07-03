@@ -16,7 +16,7 @@ export function TelemetryPanel() {
   }, []);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {stats && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label="Samples" value={String(stats.count)} />
@@ -36,16 +36,16 @@ export function TelemetryPanel() {
         <table className="w-full text-sm">
           <thead className="bg-black/5 dark:bg-white/5">
             <tr>
-              <th className="px-3 py-2 text-left font-medium">Group</th>
-              <th className="px-3 py-2 text-left font-medium">Trigger</th>
-              <th className="px-3 py-2 text-right font-medium">Apply</th>
-              <th className="px-3 py-2 text-right font-medium">Total</th>
+              <th className="px-3 py-3 text-left font-medium">Group</th>
+              <th className="px-3 py-3 text-left font-medium">Trigger</th>
+              <th className="px-3 py-3 text-right font-medium">Apply</th>
+              <th className="px-3 py-3 text-right font-medium">Total</th>
             </tr>
           </thead>
           <tbody>
             {recent.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-3 py-6 text-center text-[var(--color-muted)]">
+                <td colSpan={4} className="px-3 py-3 text-center text-[var(--color-muted)]">
                   No switches recorded yet
                 </td>
               </tr>
@@ -55,12 +55,12 @@ export function TelemetryPanel() {
                   key={r.timestamp + r.group_id}
                   className="border-t border-[var(--color-card-border)]"
                 >
-                  <td className="px-3 py-2">{r.group_name}</td>
-                  <td className="px-3 py-2 text-[var(--color-muted)]">
+                  <td className="px-3 py-3">{r.group_name}</td>
+                  <td className="px-3 py-3 text-[var(--color-muted)]">
                     {r.trigger}
                   </td>
-                  <td className="px-3 py-2 text-right">{r.display_apply_ms}ms</td>
-                  <td className="px-3 py-2 text-right">{r.total_ms}ms</td>
+                  <td className="px-3 py-3 text-right">{r.display_apply_ms}ms</td>
+                  <td className="px-3 py-3 text-right">{r.total_ms}ms</td>
                 </tr>
               ))
             )}
@@ -85,7 +85,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-[var(--color-card-border)] p-3">
       <div className="text-xs text-[var(--color-muted)]">{label}</div>
-      <div className="mt-1 text-lg font-semibold">{value}</div>
+      <div className="mt-3 text-lg font-semibold">{value}</div>
     </div>
   );
 }

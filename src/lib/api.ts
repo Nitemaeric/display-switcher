@@ -85,4 +85,8 @@ export const api = {
   clearTelemetry: () => invoke<void>("clear_telemetry"),
   exportTelemetry: (path: string) => invoke<void>("export_telemetry", { path }),
   completeOnboarding: () => invoke<void>("complete_onboarding"),
+  syncWindowChrome: (theme: string) =>
+    invoke<void>("sync_window_chrome", { theme }),
+  resolveThemeSetting: (theme: string) =>
+    invoke<string>("resolve_theme_setting", { theme }),
 };

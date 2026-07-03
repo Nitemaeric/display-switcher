@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { Monitor, Plus, Settings, Trash2, Pencil } from "lucide-react";
+import { Monitor, Plus, Settings, Trash2 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import {
   api,
@@ -101,9 +101,9 @@ function App() {
 
   if (editing) {
     return (
-      <div className="min-h-screen p-6">
+      <div className="min-h-screen p-3">
         <div className="mx-auto max-w-2xl">
-          <h2 className="mb-6 text-xl font-semibold">Edit group</h2>
+          <h2 className="mb-3 text-xl font-semibold">Edit group</h2>
           <GroupEditor
             group={editing}
             displays={displays}
@@ -120,7 +120,7 @@ function App() {
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-[var(--color-card-border)] px-6 py-4">
+      <header className="border-b border-[var(--color-card-border)] px-3 py-3">
         <div className="mx-auto flex max-w-4xl items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-accent)] text-white">
@@ -133,7 +133,7 @@ function App() {
               </p>
             </div>
           </div>
-          <nav className="flex gap-1 rounded-lg border border-[var(--color-card-border)] p-1">
+          <nav className="flex items-center gap-1 rounded-lg border border-[var(--color-card-border)] p-1">
             <TabButton active={tab === "groups"} onClick={() => setTab("groups")}>
               Groups
             </TabButton>
@@ -147,39 +147,62 @@ function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-6 py-6">
+      <main className="px-3 py-3">
+        <div className="mx-auto max-w-4xl">
         {tab === "groups" ? (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-medium">Display groups</h2>
-              <Button size="sm" onClick={handleCreateGroup}>
+              <Button className="shrink-0" onClick={handleCreateGroup}>
                 <Plus size={16} /> Add group
               </Button>
             </div>
 
             {config.groups.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-[var(--color-card-border)] py-12 text-center text-[var(--color-muted)]">
+              <div className="rounded-xl border border-dashed border-[var(--color-card-border)] py-3 text-center text-[var(--color-muted)]">
                 No groups yet. Create one to get started.
               </div>
             ) : (
               <div className="grid gap-3">
-                {config.groups.map((group) => (
+                {config.groups.map((group) => {
+                  const canActivate = group.display_ids.length > 0;
+                  return (
                   <div
                     key={group.id}
-                    className="flex items-center justify-between rounded-xl border border-[var(--color-card-border)] bg-[var(--color-card)] p-4"
+                    role="button"
+                    tabIndex={0}
+                    className="flex cursor-pointer items-center justify-between rounded-xl border border-[var(--color-card-border)] bg-[var(--color-card)] p-3 transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                    onClick={() => setEditing(group)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setEditing(group);
+                      }
+                    }}
                   >
-                    <div>
+                    <div className="min-w-0">
                       <div className="font-medium">{group.name}</div>
                       <div className="mt-1 text-sm text-[var(--color-muted)]">
                         {group.display_ids.length} display
                         {group.display_ids.length === 1 ? "" : "s"}
-                        {group.hotkey ? ` · ${group.hotkey}` : ""}
+                        {group.hotkey && canActivate ? ` · ${group.hotkey}` : ""}
+                        {!canActivate ? " · assign displays to enable" : ""}
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div
+                      className="flex shrink-0 items-center gap-3"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
                       <Button
-                        size="sm"
                         variant="secondary"
+                        className="shrink-0"
+                        disabled={!canActivate}
+                        title={
+                          canActivate
+                            ? "Activate this group"
+                            : "Add at least one display before activating"
+                        }
                         onClick={() =>
                           api
                             .activateGroup(group.id)
@@ -192,31 +215,27 @@ function App() {
                         Activate
                       </Button>
                       <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setEditing(group)}
-                      >
-                        <Pencil size={16} />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
+                        variant="secondary"
+                        size="icon"
+                        className="shrink-0"
                         onClick={() => handleDeleteGroup(group.id)}
+                        aria-label="Delete group"
                       >
                         <Trash2 size={16} className="text-rose-500" />
                       </Button>
                     </div>
                   </div>
-                ))}
+                );
+                })}
               </div>
             )}
           </div>
         ) : (
-          <div className="space-y-8">
-            <section className="space-y-4">
+          <div className="space-y-3">
+            <section className="form-section">
               <h2 className="text-base font-medium">Appearance</h2>
               <select
-                className="rounded-lg border border-[var(--color-card-border)] bg-[var(--color-card)] px-3 py-2"
+                className="form-select-control w-full"
                 value={config.settings.theme}
                 onChange={(e) => saveSettings({ theme: e.target.value })}
               >
@@ -226,10 +245,10 @@ function App() {
               </select>
             </section>
 
-            <section className="space-y-4">
+            <section className="form-section">
               <h2 className="text-base font-medium">Steam</h2>
               <input
-                className="w-full rounded-lg border border-[var(--color-card-border)] bg-[var(--color-card)] px-3 py-2"
+                className="form-input-control w-full"
                 placeholder="auto"
                 value={config.settings.steam_path}
                 onChange={(e) =>
@@ -245,12 +264,13 @@ function App() {
               </p>
             </section>
 
-            <section className="space-y-4">
+            <section className="form-section">
               <h2 className="text-base font-medium">Performance</h2>
               <TelemetryPanel />
             </section>
           </div>
         )}
+        </div>
       </main>
 
       <Toaster richColors position="bottom-right" />
@@ -270,7 +290,7 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
+      className={`flex h-8 cursor-pointer items-center gap-1.5 rounded-md px-3 text-sm transition-colors ${
         active
           ? "bg-[var(--color-accent)] text-white"
           : "text-[var(--color-muted)] hover:text-[var(--color-foreground)]"

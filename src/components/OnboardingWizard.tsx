@@ -57,19 +57,19 @@ export function OnboardingWizard({ displays, onComplete }: Props) {
   };
 
   return (
-    <div className="mx-auto flex min-h-[80vh] max-w-lg flex-col items-center justify-center px-6 text-center">
-      <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--color-accent)] text-white">
+    <div className="mx-auto flex min-h-[80vh] max-w-lg flex-col items-center justify-center px-3 text-center">
+      <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--color-accent)] text-white">
         <StepIcon size={28} />
       </div>
       <h1 className="text-2xl font-semibold">{steps[step].title}</h1>
       <p className="mt-3 text-[var(--color-muted)]">{steps[step].body}</p>
 
       {step === 1 && (
-        <ul className="mt-6 w-full space-y-2 text-left">
+        <ul className="mt-3 w-full space-y-3 text-left">
           {displays.map((d) => (
             <li
               key={d.id}
-              className="rounded-lg border border-[var(--color-card-border)] px-4 py-3"
+              className="rounded-lg border border-[var(--color-card-border)] p-3"
             >
               <div className="font-medium">{d.name}</div>
               <div className="text-sm text-[var(--color-muted)]">
@@ -81,7 +81,7 @@ export function OnboardingWizard({ displays, onComplete }: Props) {
         </ul>
       )}
 
-      <div className="mt-8 flex gap-3">
+      <div className="mt-3 flex gap-3">
         {step > 0 && (
           <Button variant="secondary" onClick={() => setStep(step - 1)}>
             Back

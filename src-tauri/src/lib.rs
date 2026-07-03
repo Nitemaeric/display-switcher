@@ -7,6 +7,7 @@ mod hotkeys;
 mod state;
 mod steam;
 mod telemetry;
+mod window_chrome;
 
 use std::fs;
 use std::sync::Arc;
@@ -19,7 +20,8 @@ use tauri::{
 };
 use crate::activator::{activate_group, save_group_layout};
 use crate::config::{
-    load_config, new_group_id, save_config, AppConfig, DisplayGroup, PostAction,
+    is_group_activatable, load_config, new_group_id, save_config, AppConfig, DisplayGroup,
+    PostAction,
 };
 use crate::gamepad::GamepadManager;
 use crate::state::AppState;
@@ -27,6 +29,19 @@ use crate::state::AppState;
 #[tauri::command]
 fn get_config(state: tauri::State<'_, Arc<AppState>>) -> AppConfig {
     state.get_config()
+}
+
+#[tauri::command]
+fn sync_window_chrome(app: AppHandle, theme: String) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window_chrome::apply_theme(&window, &theme)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn resolve_theme_setting(theme: String) -> String {
+    window_chrome::resolve_theme(&theme).to_string()
 }
 
 #[tauri::command]
@@ -195,6 +210,7 @@ fn refresh_hotkeys_and_tray(app: &AppHandle, config: &AppConfig) -> Result<(), S
     let hotkeys: Vec<(String, String)> = config
         .groups
         .iter()
+        .filter(|g| is_group_activatable(g))
         .filter_map(|g| g.hotkey.as_ref().map(|h| (g.id.clone(), h.clone())))
         .collect();
     hotkeys::register_group_hotkeys(app, hotkeys)?;
@@ -211,7 +227,7 @@ fn rebuild_tray(app: &AppHandle, config: &AppConfig) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     let mut menu_builder = MenuBuilder::new(app);
-    for group in &config.groups {
+    for group in config.groups.iter().filter(|g| is_group_activatable(g)) {
         let item = MenuItemBuilder::with_id(format!("group-{}", group.id), &group.name)
             .build(app)
             .map_err(|e| e.to_string())?;
@@ -236,7 +252,7 @@ fn setup_tray(app: &AppHandle, config: &AppConfig) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     let mut menu_builder = MenuBuilder::new(app);
-    for group in &config.groups {
+    for group in config.groups.iter().filter(|g| is_group_activatable(g)) {
         let item = MenuItemBuilder::with_id(format!("group-{}", group.id), &group.name)
             .build(app)
             .map_err(|e| e.to_string())?;
@@ -352,6 +368,8 @@ pub fn run() {
             clear_telemetry,
             export_telemetry,
             complete_onboarding,
+            sync_window_chrome,
+            resolve_theme_setting,
         ])
         .setup(move |app| {
             let config = app_state.get_config();
@@ -365,14 +383,29 @@ pub fn run() {
                 if let Ok(group_id) = serde_json::from_str::<String>(event.payload()) {
                     let config = state_clone.get_config();
                     if let Some(group) = config.groups.iter().find(|g| g.id == group_id) {
+                        if !is_group_activatable(group) {
+                            return;
+                        }
                         let result = activate_group(&config, group, "hotkey");
                         let _ = emit_handle.emit("activation-complete", &result.record);
                     }
                 }
             });
 
-            if config.settings.minimize_to_tray {
-                if let Some(window) = app.get_webview_window("main") {
+            if let Some(window) = app.get_webview_window("main") {
+                let theme = config.settings.theme.clone();
+                let _ = window_chrome::apply_theme(&window, &theme);
+
+                let win = window.clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        // Keep the daemon alive for hotkeys, gamepad, and tray.
+                        api.prevent_close();
+                        let _ = win.hide();
+                    }
+                });
+
+                if config.settings.minimize_to_tray {
                     let _ = window.hide();
                 }
             }

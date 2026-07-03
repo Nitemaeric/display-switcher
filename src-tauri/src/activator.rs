@@ -3,7 +3,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use crate::actions;
-use crate::config::{resolve_profile_path, AppConfig, DisplayGroup};
+use crate::config::{is_group_activatable, resolve_profile_path, AppConfig, DisplayGroup};
 use crate::display::{self, DisplayProfile};
 use crate::telemetry::{self, SwitchRecord};
 
@@ -20,7 +20,7 @@ pub fn activate_group(
     let profile_path = resolve_profile_path(&group.profile_file);
 
     let display_start = Instant::now();
-    let display_result = apply_group_profile(&profile_path);
+    let display_result = validate_and_apply_group(group, &profile_path);
     let display_apply_ms = display_start.elapsed().as_millis() as u64;
 
     let post_start = Instant::now();
@@ -55,23 +55,30 @@ pub fn activate_group(
     ActivationResult { record }
 }
 
-fn apply_group_profile(path: &Path) -> Result<(), String> {
-    if !path.exists() {
+fn validate_and_apply_group(group: &DisplayGroup, profile_path: &Path) -> Result<(), String> {
+    if !is_group_activatable(group) {
+        return Err("Group has no displays assigned. Add at least one display before activating.".into());
+    }
+
+    if !profile_path.exists() {
         return Err(format!(
             "Profile not found: {}. Save the group layout first.",
-            path.display()
+            profile_path.display()
         ));
     }
 
-    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let content = fs::read_to_string(profile_path).map_err(|e| e.to_string())?;
     let profile: DisplayProfile =
         serde_json::from_str(&content).map_err(|e| format!("Invalid profile: {e}"))?;
 
+    display::validate_profile_safe(&profile, &group.display_ids)?;
     display::apply_profile(&profile)
 }
 
 pub fn save_group_layout(group: &DisplayGroup) -> Result<(), String> {
     let profile = display::capture_current_profile()?;
+    // Always ensure the captured layout leaves at least one display on.
+    display::validate_profile_safe(&profile, &group.display_ids)?;
     let path = resolve_profile_path(&group.profile_file);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;

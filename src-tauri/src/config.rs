@@ -91,6 +91,11 @@ impl Default for AppConfig {
     }
 }
 
+/// A group can only be activated when it has at least one assigned display.
+pub fn is_group_activatable(group: &DisplayGroup) -> bool {
+    !group.display_ids.is_empty()
+}
+
 pub fn app_data_dir() -> PathBuf {
     dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("."))

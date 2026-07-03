@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { X, Save, Zap } from "lucide-react";
 import { api, type DisplayGroup, type DisplayInfo } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface Props {
   group: DisplayGroup;
@@ -107,23 +108,24 @@ export function GroupEditor({
     draft.post_action.type === "launch-program" ? draft.post_action : null;
   const runAction =
     draft.post_action.type === "run-command" ? draft.post_action : null;
+  const canActivate = draft.display_ids.length > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="form-section">
       <div>
-        <label className="text-sm text-[var(--color-muted)]">Group name</label>
+        <label className="form-label">Group name</label>
         <input
-          className="mt-1 w-full rounded-lg border border-[var(--color-card-border)] bg-[var(--color-card)] px-3 py-2"
+          className={cn("form-input-control mt-3 w-full")}
           value={draft.name}
           onChange={(e) => setDraft({ ...draft, name: e.target.value })}
         />
       </div>
 
       <div>
-        <label className="text-sm text-[var(--color-muted)]">Displays</label>
-        <div className="mt-2 flex gap-2">
+        <label className="form-label">Displays</label>
+        <div className="form-row">
           <select
-            className="flex-1 rounded-lg border border-[var(--color-card-border)] bg-[var(--color-card)] px-3 py-2"
+            className="form-select-control min-w-0 flex-1"
             value={selectedDisplay}
             onChange={(e) => setSelectedDisplay(e.target.value)}
           >
@@ -134,57 +136,72 @@ export function GroupEditor({
               </option>
             ))}
           </select>
-          <Button variant="secondary" onClick={addDisplay}>
+          <Button variant="secondary" className="shrink-0" onClick={addDisplay}>
             Add
           </Button>
         </div>
-        <ul className="mt-3 space-y-2">
+        <ul className="mt-3 space-y-3">
           {draft.display_ids.map((id) => {
             const display = displays.find((d) => d.id === id);
             return (
               <li
                 key={id}
-                className="flex items-center justify-between rounded-lg border border-[var(--color-card-border)] px-3 py-2"
+                className="flex h-10 items-center justify-between rounded-lg border border-[var(--color-card-border)] px-3"
               >
-                <span>{display?.name ?? id}</span>
-                <button
+                <span className="text-sm">{display?.name ?? id}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
                   onClick={() => removeDisplay(id)}
-                  className="text-[var(--color-muted)] hover:text-rose-500"
+                  aria-label="Remove display"
                 >
                   <X size={16} />
-                </button>
+                </Button>
               </li>
             );
           })}
         </ul>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Button variant="secondary" onClick={handleSaveLayout}>
+      <div className="form-actions">
+        <Button variant="secondary" className="shrink-0" onClick={handleSaveLayout}>
           <Save size={16} /> Save layout
         </Button>
-        <Button onClick={handleActivate}>
+        <Button
+          className="shrink-0"
+          onClick={handleActivate}
+          disabled={!canActivate}
+          title={
+            canActivate
+              ? "Activate this group"
+              : "Add at least one display before activating"
+          }
+        >
           <Zap size={16} /> Activate now
         </Button>
       </div>
 
       <div>
-        <label className="text-sm text-[var(--color-muted)]">Hotkey</label>
-        <div className="mt-2 flex gap-2">
+        <label className="form-label">Hotkey</label>
+        <div className="form-row">
           <input
             readOnly
-            className="flex-1 rounded-lg border border-[var(--color-card-border)] bg-[var(--color-card)] px-3 py-2"
+            className="form-input-control min-w-0 flex-1"
             value={draft.hotkey ?? "None"}
             placeholder="None"
           />
           <Button
             variant="secondary"
+            className="shrink-0"
             onClick={() => setRecordingHotkey(true)}
           >
             {recordingHotkey ? "Press keys…" : "Record"}
           </Button>
           <Button
-            variant="ghost"
+            variant="secondary"
+            className="shrink-0"
             onClick={() => setDraft({ ...draft, hotkey: null })}
           >
             Clear
@@ -193,17 +210,17 @@ export function GroupEditor({
       </div>
 
       <div>
-        <label className="text-sm text-[var(--color-muted)]">
+        <label className="form-label">
           Gamepad chord (hold {draft.gamepad_chord?.hold_ms ?? 400}ms)
         </label>
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="form-actions">
           {gamepadButtons.map((btn) => {
             const active = draft.gamepad_chord?.buttons.includes(btn);
             return (
               <Button
                 key={btn}
-                size="sm"
                 variant={active ? "default" : "secondary"}
+                className="min-w-[3.25rem] shrink-0 px-3"
                 onClick={() => toggleGamepadButton(btn)}
               >
                 {btn}
@@ -214,9 +231,9 @@ export function GroupEditor({
       </div>
 
       <div>
-        <label className="text-sm text-[var(--color-muted)]">Post-action</label>
+        <label className="form-label">Post-action</label>
         <select
-          className="mt-1 w-full rounded-lg border border-[var(--color-card-border)] bg-[var(--color-card)] px-3 py-2"
+          className={cn("form-select-control mt-3 w-full")}
           value={
             draft.post_action.type === "builtin"
               ? draft.post_action.action
@@ -250,9 +267,9 @@ export function GroupEditor({
         </select>
 
         {launchAction && (
-          <div className="mt-2 space-y-2">
+          <div className="form-section mt-3">
             <input
-              className="w-full rounded-lg border border-[var(--color-card-border)] bg-[var(--color-card)] px-3 py-2"
+              className="form-input-control w-full"
               placeholder="C:\path\to\program.exe"
               value={launchAction.path}
               onChange={(e) =>
@@ -267,7 +284,7 @@ export function GroupEditor({
               }
             />
             <input
-              className="w-full rounded-lg border border-[var(--color-card-border)] bg-[var(--color-card)] px-3 py-2"
+              className="form-input-control w-full"
               placeholder="Optional arguments"
               value={launchAction.args ?? ""}
               onChange={(e) =>
@@ -286,7 +303,7 @@ export function GroupEditor({
 
         {runAction && (
           <input
-            className="mt-2 w-full rounded-lg border border-[var(--color-card-border)] bg-[var(--color-card)] px-3 py-2"
+            className="form-input-control mt-3 w-full"
             placeholder="command to run"
             value={runAction.command}
             onChange={(e) =>
@@ -302,11 +319,17 @@ export function GroupEditor({
         )}
       </div>
 
-      <div className="flex justify-end gap-2 border-t border-[var(--color-card-border)] pt-4">
-        <Button variant="secondary" onClick={onClose}>
+      <div className="flex items-center justify-end gap-3 border-t border-[var(--color-card-border)] pt-3">
+        <Button
+          variant="secondary"
+          className="min-w-[7rem]"
+          onClick={onClose}
+        >
           Cancel
         </Button>
-        <Button onClick={handleSubmit}>Save group</Button>
+        <Button className="min-w-[7rem]" onClick={handleSubmit}>
+          Save group
+        </Button>
       </div>
     </div>
   );

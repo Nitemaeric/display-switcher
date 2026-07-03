@@ -12,7 +12,7 @@ pub mod types;
 pub use types::{DisplayInfo, DisplayProfile};
 
 #[cfg(target_os = "windows")]
-pub use apply::apply_profile;
+pub use apply::{apply_profile, validate_profile_safe};
 #[cfg(target_os = "windows")]
 pub use capture::capture_current_profile;
 #[cfg(target_os = "windows")]
@@ -30,5 +30,10 @@ pub fn capture_current_profile() -> Result<DisplayProfile, String> {
 
 #[cfg(not(target_os = "windows"))]
 pub fn apply_profile(_profile: &DisplayProfile) -> Result<(), String> {
+    Err("Display switching is only supported on Windows".into())
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn validate_profile_safe(_profile: &DisplayProfile, _group_display_ids: &[String]) -> Result<(), String> {
     Err("Display switching is only supported on Windows".into())
 }
