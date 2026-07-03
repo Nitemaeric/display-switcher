@@ -85,15 +85,18 @@ pub fn is_steam_running() -> bool {
 pub fn launch_big_picture(steam_path: &PathBuf) -> Result<(), String> {
     if !is_steam_running() {
         Command::new(steam_path)
+            .args(["-bigpicture"])
             .spawn()
             .map_err(|e| format!("Failed to start Steam: {e}"))?;
-        thread::sleep(Duration::from_secs(2));
+        return Ok(());
     }
 
-    Command::new(steam_path)
-        .arg("-bigpicture")
+    // `-bigpicture` is ignored when Steam is already running; use the URL protocol.
+    Command::new("cmd")
+        .args(["/C", "start", "", "steam://open/bigpicture"])
         .spawn()
         .map_err(|e| format!("Failed to launch Big Picture: {e}"))?;
+    thread::sleep(Duration::from_millis(500));
     Ok(())
 }
 

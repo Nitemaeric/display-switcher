@@ -1,10 +1,11 @@
 use windows::Win32::Devices::Display::{
-    SetDisplayConfig, DISPLAYCONFIG_MODE_INFO, DISPLAYCONFIG_PATH_INFO, SDC_ALLOW_CHANGES,
-    SDC_APPLY, SDC_USE_SUPPLIED_DISPLAY_CONFIG,
+    SetDisplayConfig, DISPLAYCONFIG_PATH_INFO, SDC_ALLOW_CHANGES, SDC_APPLY,
+    SDC_USE_SUPPLIED_DISPLAY_CONFIG, SDC_VIRTUAL_MODE_AWARE,
 };
 
+use super::enumerate::list_displays;
 use super::remap::remap_profile;
-use super::types::{decode_structs, DisplayProfile};
+use super::types::{decode_structs, encode_structs, DisplayProfile, PathLabel};
 
 /// DISPLAYCONFIG_PATH_ACTIVE
 const PATH_ACTIVE: u32 = 0x00000001;
@@ -16,13 +17,31 @@ pub fn validate_profile_safe(profile: &DisplayProfile, group_display_ids: &[Stri
         return Ok(());
     }
 
-    if !profile_activates_any_assigned(profile, group_display_ids) {
-        return Err(
-            "This layout does not activate any of the displays assigned to this group.".into(),
-        );
+    let assigned_labels = resolve_assigned_labels(group_display_ids);
+
+    if profile_activates_any_assigned(profile, group_display_ids, &assigned_labels) {
+        return Ok(());
     }
 
-    Ok(())
+    Err(format!(
+        "None of this group's displays are turned on in the current Windows layout. \
+         In Windows Display Settings, enable {}, arrange them, then click Save layout again.",
+        assigned_labels.join(", ")
+    ))
+}
+
+fn resolve_assigned_labels(group_display_ids: &[String]) -> Vec<String> {
+    let displays = list_displays().unwrap_or_default();
+    group_display_ids
+        .iter()
+        .map(|id| {
+            displays
+                .iter()
+                .find(|display| &display.id == id)
+                .map(|display| display.name.clone())
+                .unwrap_or_else(|| id.clone())
+        })
+        .collect()
 }
 
 fn validate_at_least_one_active(profile: &DisplayProfile) -> Result<(), String> {
@@ -40,6 +59,7 @@ fn validate_at_least_one_active(profile: &DisplayProfile) -> Result<(), String> 
 fn profile_activates_any_assigned(
     profile: &DisplayProfile,
     group_display_ids: &[String],
+    assigned_labels: &[String],
 ) -> bool {
     let paths: Vec<DISPLAYCONFIG_PATH_INFO> =
         decode_structs(&profile.paths_b64).unwrap_or_default();
@@ -51,18 +71,194 @@ fn profile_activates_any_assigned(
         profile
             .path_labels
             .get(idx)
-            .map(|label| group_display_ids.iter().any(|id| id == &label.gdi_device_name))
+            .map(|label| label_matches_assigned(label, group_display_ids, assigned_labels))
             .unwrap_or(false)
     })
 }
 
-pub fn apply_profile(profile: &DisplayProfile) -> Result<(), String> {
+fn label_matches_assigned(
+    label: &PathLabel,
+    group_display_ids: &[String],
+    assigned_labels: &[String],
+) -> bool {
+    if group_display_ids
+        .iter()
+        .any(|id| id == &label.gdi_device_name)
+    {
+        return true;
+    }
+
+    assigned_labels
+        .iter()
+        .any(|name| names_match(&label.target_device_name, name))
+}
+
+fn names_match(target: &str, assigned: &str) -> bool {
+    let target = normalize_device_name(target);
+    let assigned = normalize_device_name(assigned);
+    if target.is_empty() || assigned.is_empty() {
+        return false;
+    }
+    target == assigned || target.contains(&assigned) || assigned.contains(&target)
+}
+
+fn normalize_device_name(name: &str) -> String {
+    name.split('(')
+        .next()
+        .unwrap_or(name)
+        .trim()
+        .to_lowercase()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    const PATH_ACTIVE: u32 = 0x00000001;
+
+    fn dump_active_paths(path: &str) {
+        let content = fs::read_to_string(path).expect("read profile");
+        let profile: DisplayProfile = serde_json::from_str(&content).expect("parse profile");
+        let paths: Vec<DISPLAYCONFIG_PATH_INFO> =
+            decode_structs(&profile.paths_b64).expect("decode paths");
+
+        println!("=== {path} ===");
+        for (idx, path_info) in paths.iter().enumerate() {
+            if path_info.flags & PATH_ACTIVE == 0 {
+                continue;
+            }
+            let label = profile.path_labels.get(idx);
+            let gdi = label.map(|l| l.gdi_device_name.as_str()).unwrap_or("?");
+            let target = label.map(|l| l.target_device_name.as_str()).unwrap_or("?");
+            println!("  ACTIVE: {gdi} -> {target}");
+        }
+    }
+
+    #[test]
+    fn dump_saved_profiles() {
+        let base = std::env::var("APPDATA").expect("APPDATA");
+        let dir = format!("{base}\\display-switcher\\profiles");
+        dump_active_paths(&format!("{dir}\\3ef0f17c-7a54-4f28-905b-8651d1414e20.json"));
+        dump_active_paths(&format!("{dir}\\cd1a3f53-7d16-430f-9d8c-17ef5c959647.json"));
+    }
+
+    #[test]
+    fn desktop_profile_targets_two_monitors() {
+        let base = std::env::var("APPDATA").expect("APPDATA");
+        let path = format!("{base}\\display-switcher\\profiles\\3ef0f17c-7a54-4f28-905b-8651d1414e20.json");
+        let content = fs::read_to_string(&path).expect("read profile");
+        let profile: DisplayProfile = serde_json::from_str(&content).expect("parse profile");
+        let selections = active_path_selections(&profile).expect("selections");
+        let gdis: Vec<_> = selections
+            .iter()
+            .map(|label| label.gdi_device_name.as_str())
+            .collect();
+        assert!(gdis.contains(&"\\\\.\\DISPLAY2"));
+        assert!(gdis.contains(&"\\\\.\\DISPLAY3"));
+    }
+
+    #[test]
+    fn sanitize_tv_profile_disables_desktop_paths() {
+        let base = std::env::var("APPDATA").expect("APPDATA");
+        let path = format!("{base}\\display-switcher\\profiles\\cd1a3f53-7d16-430f-9d8c-17ef5c959647.json");
+        let content = fs::read_to_string(&path).expect("read profile");
+        let mut profile: DisplayProfile = serde_json::from_str(&content).expect("parse profile");
+        let tv_display_ids = vec!["\\\\.\\DISPLAY1".to_string()];
+
+        sanitize_profile_for_group(&mut profile, &tv_display_ids).expect("sanitize");
+
+        let paths: Vec<DISPLAYCONFIG_PATH_INFO> =
+            decode_structs(&profile.paths_b64).expect("decode paths");
+        let mut active: Vec<(String, String)> = Vec::new();
+        for (idx, path_info) in paths.iter().enumerate() {
+            if path_info.flags & PATH_ACTIVE == 0 {
+                continue;
+            }
+            let label = profile.path_labels.get(idx).expect("label");
+            active.push((label.gdi_device_name.clone(), label.target_device_name.clone()));
+        }
+
+        assert!(
+            active.iter().all(|(gdi, _)| gdi == "\\\\.\\DISPLAY1"),
+            "expected only DISPLAY1 active, got {active:?}"
+        );
+    }
+}
+
+/// Deactivates display paths that are not assigned to this group so a saved
+/// layout cannot accidentally keep extra monitors on (e.g. TV Mode with desktops).
+pub fn sanitize_profile_for_group(
+    profile: &mut DisplayProfile,
+    group_display_ids: &[String],
+) -> Result<(), String> {
+    if group_display_ids.is_empty() {
+        return Ok(());
+    }
+
     let mut paths: Vec<DISPLAYCONFIG_PATH_INFO> = decode_structs(&profile.paths_b64)?;
-    let mut modes: Vec<DISPLAYCONFIG_MODE_INFO> = decode_structs(&profile.modes_b64)?;
 
-    remap_profile(&profile.path_labels, &mut paths, &mut modes)?;
+    for (idx, path) in paths.iter_mut().enumerate() {
+        let Some(label) = profile.path_labels.get(idx) else {
+            continue;
+        };
+        if group_display_ids
+            .iter()
+            .any(|id| id == &label.gdi_device_name)
+        {
+            continue;
+        }
+        path.flags &= !PATH_ACTIVE;
+    }
 
-    let flags = SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_ALLOW_CHANGES;
+    profile.paths_b64 = encode_structs(&paths);
+    Ok(())
+}
+
+fn labels_match_for_apply(saved: &PathLabel, current: &PathLabel) -> bool {
+    if saved.gdi_device_name.to_lowercase() != current.gdi_device_name.to_lowercase() {
+        return false;
+    }
+    if saved.target_device_name.is_empty() || current.target_device_name.is_empty() {
+        return true;
+    }
+    names_match(&saved.target_device_name, &current.target_device_name)
+}
+
+fn active_path_selections(profile: &DisplayProfile) -> Result<Vec<PathLabel>, String> {
+    let saved_paths: Vec<DISPLAYCONFIG_PATH_INFO> = decode_structs(&profile.paths_b64)?;
+    let mut selections = Vec::new();
+
+    for (idx, path) in saved_paths.iter().enumerate() {
+        if path.flags & PATH_ACTIVE == 0 {
+            continue;
+        }
+        let Some(label) = profile.path_labels.get(idx) else {
+            continue;
+        };
+        if label.gdi_device_name.is_empty() {
+            continue;
+        }
+        if selections.iter().any(|existing| labels_match_for_apply(existing, label)) {
+            continue;
+        }
+        selections.push(label.clone());
+    }
+
+    Ok(selections)
+}
+
+pub fn apply_profile(profile: &DisplayProfile) -> Result<(), String> {
+    validate_at_least_one_active(profile)?;
+
+    let mut paths = decode_structs(&profile.paths_b64)?;
+    let mut modes = decode_structs(&profile.modes_b64)?;
+    remap_profile(&mut paths, &mut modes)?;
+
+    let flags = SDC_APPLY
+        | SDC_USE_SUPPLIED_DISPLAY_CONFIG
+        | SDC_ALLOW_CHANGES
+        | SDC_VIRTUAL_MODE_AWARE;
     let result = unsafe { SetDisplayConfig(Some(&paths), Some(&modes), flags) };
 
     if result != 0 {

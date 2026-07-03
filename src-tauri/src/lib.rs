@@ -10,6 +10,7 @@ mod steam;
 mod telemetry;
 mod window_chrome;
 
+use std::collections::HashMap;
 use std::fs;
 use std::sync::Arc;
 
@@ -21,8 +22,8 @@ use tauri::{
 };
 use crate::activator::{activate_group, save_group_layout};
 use crate::config::{
-    is_group_activatable, load_config, new_group_id, save_config, AppConfig, DisplayGroup,
-    PostAction,
+    group_has_layout, is_group_activatable, load_config, new_group_id, save_config, AppConfig,
+    DisplayGroup, PostAction,
 };
 use crate::gamepad::GamepadManager;
 use crate::state::AppState;
@@ -61,6 +62,18 @@ fn save_app_config(
 #[tauri::command]
 fn list_displays() -> Result<Vec<display::DisplayInfo>, String> {
     display::list_displays()
+}
+
+#[tauri::command]
+fn list_group_layout_status(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<HashMap<String, bool>, String> {
+    let config = state.get_config();
+    Ok(config
+        .groups
+        .iter()
+        .map(|group| (group.id.clone(), group_has_layout(group)))
+        .collect())
 }
 
 #[tauri::command]
@@ -362,6 +375,7 @@ pub fn run() {
             get_config,
             save_app_config,
             list_displays,
+            list_group_layout_status,
             save_group_layout_cmd,
             activate_group_cmd,
             create_group,
@@ -391,6 +405,23 @@ pub fn run() {
                     let config = state_clone.get_config();
                     if let Some(group) = config.groups.iter().find(|g| g.id == group_id) {
                         if !is_group_activatable(group) {
+                            return;
+                        }
+                        if !group_has_layout(group) {
+                            let record = telemetry::make_record(
+                                &group.id,
+                                &group.name,
+                                "hotkey",
+                                0,
+                                0,
+                                0,
+                                false,
+                                Some(
+                                    "No layout saved for this group. Open the group and click Save layout."
+                                        .into(),
+                                ),
+                            );
+                            let _ = emit_handle.emit("activation-complete", &record);
                             return;
                         }
                         let result = activate_group(&config, group, "hotkey");

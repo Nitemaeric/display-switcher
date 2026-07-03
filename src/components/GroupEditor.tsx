@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { X, Save, Zap } from "lucide-react";
-import { api, type DisplayGroup, type DisplayInfo } from "@/lib/api";
+import {
+  api,
+  formatAssignedDisplayNames,
+  formatDisplayLabel,
+  formatInvokeError,
+  type DisplayGroup,
+  type DisplayInfo,
+} from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -25,7 +32,16 @@ export function GroupEditor({
   const [draft, setDraft] = useState(group);
   const [selectedDisplay, setSelectedDisplay] = useState("");
   const [recordingHotkey, setRecordingHotkey] = useState(false);
+  const [hasLayout, setHasLayout] = useState(false);
+  const [saving, setSaving] = useState<"group" | "layout" | null>(null);
   useEffect(() => setDraft(group), [group]);
+
+  useEffect(() => {
+    api
+      .listGroupLayoutStatus()
+      .then((status) => setHasLayout(status[group.id] ?? false))
+      .catch(() => setHasLayout(false));
+  }, [group.id]);
 
   const available = displays.filter((d) => !draft.display_ids.includes(d.id));
 
@@ -43,12 +59,16 @@ export function GroupEditor({
   };
 
   const handleSaveLayout = async () => {
+    setSaving("layout");
     try {
       await onSave(draft);
       await api.saveGroupLayout(draft.id);
-      toast.success("Layout saved");
+      setHasLayout(true);
+      toast.success("Layout saved — you can activate this group now");
     } catch (e) {
-      toast.error(String(e));
+      toast.error(formatInvokeError(e), { duration: 8000 });
+    } finally {
+      setSaving(null);
     }
   };
 
@@ -57,17 +77,27 @@ export function GroupEditor({
       const record = await api.activateGroup(draft.id, "ui");
       toast.success(`Activated in ${record.display_apply_ms}ms`);
     } catch (e) {
-      toast.error(String(e));
+      toast.error(formatInvokeError(e));
     }
   };
 
   const handleSubmit = async () => {
+    setSaving("group");
     try {
       await onSave(draft);
-      toast.success("Group saved");
-      onClose();
+      if (draft.display_ids.length > 0 && !hasLayout) {
+        toast.success(
+          "Display assignment saved. Turn monitors on in Windows Settings, then click Save layout.",
+          { duration: 8000 },
+        );
+      } else {
+        toast.success("Group saved");
+        onClose();
+      }
     } catch (e) {
-      toast.error(String(e));
+      toast.error(formatInvokeError(e));
+    } finally {
+      setSaving(null);
     }
   };
 
@@ -108,10 +138,19 @@ export function GroupEditor({
     draft.post_action.type === "launch-program" ? draft.post_action : null;
   const runAction =
     draft.post_action.type === "run-command" ? draft.post_action : null;
-  const canActivate = draft.display_ids.length > 0;
+  const hasDisplays = draft.display_ids.length > 0;
+  const canActivate = hasDisplays && hasLayout;
+  const assignedNames = formatAssignedDisplayNames(draft.display_ids, displays);
 
   return (
     <div className="form-section">
+      {hasDisplays && !hasLayout && (
+        <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+          <strong>{assignedNames} assigned.</strong> Next, open Windows Display
+          Settings, turn on the monitors you want for this mode, then click{" "}
+          <strong>Save layout</strong> to capture that arrangement.
+        </p>
+      )}
       <div>
         <label className="form-label">Group name</label>
         <input
@@ -132,7 +171,7 @@ export function GroupEditor({
             <option value="">Select a display…</option>
             {available.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.name} ({d.width}×{d.height})
+                {formatDisplayLabel(d)}
               </option>
             ))}
           </select>
@@ -166,8 +205,18 @@ export function GroupEditor({
       </div>
 
       <div className="form-actions">
-        <Button variant="secondary" className="shrink-0" onClick={handleSaveLayout}>
-          <Save size={16} /> Save layout
+        <Button
+          variant="secondary"
+          className="shrink-0"
+          onClick={handleSaveLayout}
+          disabled={!hasDisplays || saving !== null}
+          title={
+            hasDisplays
+              ? "Capture the current Windows display arrangement"
+              : "Add at least one display first"
+          }
+        >
+          <Save size={16} /> {saving === "layout" ? "Saving…" : "Save layout"}
         </Button>
         <Button
           className="shrink-0"
@@ -176,7 +225,9 @@ export function GroupEditor({
           title={
             canActivate
               ? "Activate this group"
-              : "Add at least one display before activating"
+              : !hasDisplays
+                ? "Add at least one display before activating"
+                : "Save the group layout before activating"
           }
         >
           <Zap size={16} /> Activate now
@@ -327,8 +378,12 @@ export function GroupEditor({
         >
           Cancel
         </Button>
-        <Button className="min-w-[7rem]" onClick={handleSubmit}>
-          Save group
+        <Button
+          className="min-w-[7rem]"
+          onClick={handleSubmit}
+          disabled={saving !== null}
+        >
+          {saving === "group" ? "Saving…" : "Save group"}
         </Button>
       </div>
     </div>

@@ -39,6 +39,24 @@ Source: `icon-concepts/concept-4-single-refresh.svg`
 bun run icon
 ```
 
+## Release
+
+Bump the version in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`, then create an annotated git tag:
+
+```bash
+bun run release patch    # 0.1.0 -> 0.1.1
+bun run release minor    # 0.1.0 -> 0.2.0
+bun run release major    # 0.1.0 -> 1.0.0
+```
+
+Add `--push` to commit, tag, and push in one step:
+
+```bash
+bun run release patch --push
+```
+
+Pushing a `v*` tag triggers the GitHub Actions release workflow, which builds the Windows installers and attaches them to a GitHub Release.
+
 Output: `src-tauri/target/release/bundle/nsis/`
 
 ## Default test setup

@@ -11,6 +11,78 @@ export interface DisplayInfo {
   y: number;
 }
 
+export function formatDisplayStatus(display: DisplayInfo): string {
+  if (!display.is_active) {
+    return "Disabled in Windows";
+  }
+  if (display.width > 0 && display.height > 0) {
+    return `${display.width}×${display.height}`;
+  }
+  return "Connected";
+}
+
+export function formatInvokeError(error: unknown): string {
+  if (typeof error === "string") {
+    return error;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    if (typeof record.message === "string") {
+      return record.message;
+    }
+  }
+  return String(error);
+}
+
+export function formatAssignedDisplayNames(
+  displayIds: string[],
+  displays: DisplayInfo[],
+): string {
+  if (displayIds.length === 0) {
+    return "No displays assigned";
+  }
+
+  const names = displayIds.map((id) => {
+    const display = displays.find((d) => d.id === id);
+    return display?.name ?? id;
+  });
+
+  return names.join(", ");
+}
+
+export function formatGroupSummary(
+  displayIds: string[],
+  displays: DisplayInfo[],
+  hasLayout: boolean,
+  hotkey?: string | null,
+): string {
+  const assigned = formatAssignedDisplayNames(displayIds, displays);
+
+  if (displayIds.length === 0) {
+    return assigned;
+  }
+
+  if (!hasLayout) {
+    return `${assigned} assigned · capture layout to activate`;
+  }
+
+  return hotkey ? `${assigned} · ${hotkey}` : assigned;
+}
+
+export function formatDisplayLabel(display: DisplayInfo): string {
+  const status = formatDisplayStatus(display);
+  if (status === "Connected") {
+    return display.name;
+  }
+  if (status === "Disabled in Windows") {
+    return `${display.name} (disabled)`;
+  }
+  return `${display.name} (${status})`;
+}
+
 export interface GamepadChord {
   buttons: string[];
   hold_ms: number;
@@ -69,6 +141,8 @@ export const api = {
   getConfig: () => invoke<AppConfig>("get_config"),
   saveConfig: (config: AppConfig) => invoke<void>("save_app_config", { config }),
   listDisplays: () => invoke<DisplayInfo[]>("list_displays"),
+  listGroupLayoutStatus: () =>
+    invoke<Record<string, boolean>>("list_group_layout_status"),
   saveGroupLayout: (groupId: string) =>
     invoke<void>("save_group_layout_cmd", { groupId }),
   activateGroup: (groupId: string, trigger = "ui") =>

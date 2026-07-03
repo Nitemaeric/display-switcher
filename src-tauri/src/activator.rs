@@ -61,23 +61,24 @@ fn validate_and_apply_group(group: &DisplayGroup, profile_path: &Path) -> Result
     }
 
     if !profile_path.exists() {
-        return Err(format!(
-            "Profile not found: {}. Save the group layout first.",
-            profile_path.display()
-        ));
+        return Err(
+            "No layout saved for this group. Open the group, arrange displays in Windows Settings, then click Save layout."
+                .into(),
+        );
     }
 
     let content = fs::read_to_string(profile_path).map_err(|e| e.to_string())?;
-    let profile: DisplayProfile =
+    let mut profile: DisplayProfile =
         serde_json::from_str(&content).map_err(|e| format!("Invalid profile: {e}"))?;
 
+    display::sanitize_profile_for_group(&mut profile, &group.display_ids)?;
     display::validate_profile_safe(&profile, &group.display_ids)?;
     display::apply_profile(&profile)
 }
 
 pub fn save_group_layout(group: &DisplayGroup) -> Result<(), String> {
-    let profile = display::capture_current_profile()?;
-    // Always ensure the captured layout leaves at least one display on.
+    let mut profile = display::capture_current_profile()?;
+    display::sanitize_profile_for_group(&mut profile, &group.display_ids)?;
     display::validate_profile_safe(&profile, &group.display_ids)?;
     let path = resolve_profile_path(&group.profile_file);
     if let Some(parent) = path.parent() {

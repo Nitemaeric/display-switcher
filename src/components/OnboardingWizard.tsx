@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Monitor, Keyboard, CheckCircle2 } from "lucide-react";
-import { api, type DisplayInfo } from "@/lib/api";
+import { api, formatDisplayStatus, type DisplayInfo } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
 interface Props {
@@ -73,7 +73,7 @@ export function OnboardingWizard({ displays, onComplete }: Props) {
             >
               <div className="font-medium">{d.name}</div>
               <div className="text-sm text-[var(--color-muted)]">
-                {d.width}×{d.height}
+                {formatDisplayStatus(d)}
                 {d.is_primary ? " · Primary" : ""}
               </div>
             </li>

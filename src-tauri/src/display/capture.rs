@@ -6,7 +6,11 @@ use windows::Win32::Devices::Display::{
     DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME, DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME,
     DISPLAYCONFIG_DEVICE_INFO_HEADER, DISPLAYCONFIG_MODE_INFO, DISPLAYCONFIG_PATH_INFO,
     DISPLAYCONFIG_SOURCE_DEVICE_NAME, DISPLAYCONFIG_TARGET_DEVICE_NAME, QDC_ALL_PATHS,
+    QDC_VIRTUAL_MODE_AWARE, QUERY_DISPLAY_CONFIG_FLAGS,
 };
+
+const QUERY_FLAGS: QUERY_DISPLAY_CONFIG_FLAGS =
+    QUERY_DISPLAY_CONFIG_FLAGS(QDC_ALL_PATHS.0 | QDC_VIRTUAL_MODE_AWARE.0);
 use windows::Win32::Foundation::WIN32_ERROR;
 
 use super::types::{DisplayProfile, PathLabel, encode_structs};
@@ -34,7 +38,7 @@ pub fn query_raw_config() -> Result<(Vec<DISPLAYCONFIG_PATH_INFO>, Vec<DISPLAYCO
     let mut mode_count: u32 = 0;
 
     let err = unsafe {
-        GetDisplayConfigBufferSizes(QDC_ALL_PATHS, &mut path_count, &mut mode_count)
+        GetDisplayConfigBufferSizes(QUERY_FLAGS, &mut path_count, &mut mode_count)
     };
     if err != WIN32_ERROR(0) {
         return Err(format!("GetDisplayConfigBufferSizes failed: {err:?}"));
@@ -45,7 +49,7 @@ pub fn query_raw_config() -> Result<(Vec<DISPLAYCONFIG_PATH_INFO>, Vec<DISPLAYCO
 
     let err = unsafe {
         QueryDisplayConfig(
-            QDC_ALL_PATHS,
+            QUERY_FLAGS,
             &mut path_count,
             paths.as_mut_ptr(),
             &mut mode_count,
@@ -60,6 +64,10 @@ pub fn query_raw_config() -> Result<(Vec<DISPLAYCONFIG_PATH_INFO>, Vec<DISPLAYCO
     paths.truncate(path_count as usize);
     modes.truncate(mode_count as usize);
     Ok((paths, modes))
+}
+
+pub fn get_source_name_for_path(path: &DISPLAYCONFIG_PATH_INFO) -> Option<String> {
+    get_source_name(path)
 }
 
 pub fn get_target_name_for_path(path: &DISPLAYCONFIG_PATH_INFO) -> Option<String> {

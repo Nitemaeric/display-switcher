@@ -1,14 +1,15 @@
 {
   "name": "display-switcher",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "bunx tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "icon": "tauri icon icon-concepts/concept-4-single-refresh.svg"
+    "icon": "tauri icon icon-concepts/concept-4-single-refresh.svg",
+    "release": "bun scripts/release.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.18",

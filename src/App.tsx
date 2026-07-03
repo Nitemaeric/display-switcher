@@ -4,9 +4,12 @@ import { Monitor, Plus, Settings, Trash2 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import {
   api,
+  formatGroupSummary,
+  formatInvokeError,
   type AppConfig,
   type DisplayGroup,
   type DisplayInfo,
+  type SwitchRecord,
 } from "@/lib/api";
 import { useTheme } from "@/hooks/useTheme";
 import { Button } from "@/components/ui/button";
@@ -23,35 +26,45 @@ function App() {
   const [editing, setEditing] = useState<DisplayGroup | null>(null);
   const [builtinActions, setBuiltinActions] = useState<[string, string][]>([]);
   const [gamepadButtons, setGamepadButtons] = useState<string[]>([]);
+  const [layoutStatus, setLayoutStatus] = useState<Record<string, boolean>>({});
 
   useTheme(config?.settings ?? null);
 
   const reload = useCallback(async () => {
-    const [cfg, disp, actions, buttons] = await Promise.all([
+    const [cfg, disp, actions, buttons, layouts] = await Promise.all([
       api.getConfig(),
       api.listDisplays(),
       api.getBuiltinActions(),
       api.getGamepadButtons(),
+      api.listGroupLayoutStatus(),
     ]);
     setConfig(cfg);
     setDisplays(disp);
     setBuiltinActions(actions);
     setGamepadButtons(buttons);
+    setLayoutStatus(layouts);
   }, []);
 
   useEffect(() => {
-    reload().catch((e) => toast.error(String(e)));
+    reload().catch((e) => toast.error(formatInvokeError(e)));
   }, [reload]);
 
   useEffect(() => {
-    const unlisten = listen<string>("activate-group", async (event) => {
-      try {
-        const record = await api.activateGroup(event.payload, "hotkey");
-        toast.success(`${record.group_name} activated (${record.display_apply_ms}ms)`);
-      } catch (e) {
-        toast.error(String(e));
-      }
-    });
+    const unlisten = listen<SwitchRecord>(
+      "activation-complete",
+      (event) => {
+        const record = event.payload;
+        if (record.success) {
+          toast.success(
+            `${record.group_name} activated (${record.display_apply_ms}ms)`,
+          );
+        } else {
+          toast.error(record.error ?? `${record.group_name} failed to activate`, {
+            duration: 8000,
+          });
+        }
+      },
+    );
     return () => {
       unlisten.then((fn) => fn());
     };
@@ -68,6 +81,7 @@ function App() {
   const handleUpdateGroup = async (group: DisplayGroup) => {
     await api.updateGroup(group);
     await reload();
+    setEditing((current) => (current?.id === group.id ? group : current));
   };
 
   const handleCreateGroup = async () => {
@@ -165,7 +179,9 @@ function App() {
             ) : (
               <div className="grid gap-3">
                 {config.groups.map((group) => {
-                  const canActivate = group.display_ids.length > 0;
+                  const hasDisplays = group.display_ids.length > 0;
+                  const hasLayout = layoutStatus[group.id] ?? false;
+                  const canActivate = hasDisplays && hasLayout;
                   return (
                   <div
                     key={group.id}
@@ -183,10 +199,12 @@ function App() {
                     <div className="min-w-0">
                       <div className="font-medium">{group.name}</div>
                       <div className="mt-1 text-sm text-[var(--color-muted)]">
-                        {group.display_ids.length} display
-                        {group.display_ids.length === 1 ? "" : "s"}
-                        {group.hotkey && canActivate ? ` · ${group.hotkey}` : ""}
-                        {!canActivate ? " · assign displays to enable" : ""}
+                        {formatGroupSummary(
+                          group.display_ids,
+                          displays,
+                          hasLayout,
+                          group.hotkey,
+                        )}
                       </div>
                     </div>
                     <div
@@ -201,7 +219,9 @@ function App() {
                         title={
                           canActivate
                             ? "Activate this group"
-                            : "Add at least one display before activating"
+                            : !hasDisplays
+                              ? "Add at least one display before activating"
+                              : "Save the group layout before activating"
                         }
                         onClick={() =>
                           api
@@ -209,7 +229,7 @@ function App() {
                             .then((r) =>
                               toast.success(`Activated in ${r.display_apply_ms}ms`),
                             )
-                            .catch((e) => toast.error(String(e)))
+                            .catch((e) => toast.error(formatInvokeError(e)))
                         }
                       >
                         Activate

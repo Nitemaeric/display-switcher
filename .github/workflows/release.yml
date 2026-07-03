@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build and publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Display Switcher ${{ github.ref_name }}
+          releaseBody: |
+            Windows build for Display Switcher ${{ github.ref_name }}.
+
+            - **NSIS** (`*-setup.exe`): recommended installer
+            - **MSI** (`*.msi`): alternative for managed deployments
+          releaseDraft: false
+          prerelease: false
+          args: --target x86_64-pc-windows-msvc

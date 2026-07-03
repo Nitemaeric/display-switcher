@@ -13,6 +13,15 @@ export default defineConfig({
     },
   },
   clearScreen: false,
+  // Only scan the app entry — avoid picking up icon-concepts/ and src-tauri/target/doc/
+  optimizeDeps: {
+    entries: ["index.html"],
+  },
+  build: {
+    rollupOptions: {
+      input: path.resolve(__dirname, "index.html"),
+    },
+  },
   server: {
     port: 1420,
     strictPort: true,
@@ -25,7 +34,10 @@ export default defineConfig({
         }
       : undefined,
     watch: {
-      ignored: ["**/src-tauri/**"],
+      ignored: ["**/src-tauri/**", "**/icon-concepts/**"],
+    },
+    fs: {
+      deny: ["**/src-tauri/target/**"],
     },
   },
 });

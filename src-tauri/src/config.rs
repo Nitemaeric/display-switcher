@@ -96,6 +96,11 @@ pub fn is_group_activatable(group: &DisplayGroup) -> bool {
     !group.display_ids.is_empty()
 }
 
+/// True when a saved Windows display layout profile exists for this group.
+pub fn group_has_layout(group: &DisplayGroup) -> bool {
+    resolve_profile_path(&group.profile_file).exists()
+}
+
 pub fn app_data_dir() -> PathBuf {
     dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("."))

@@ -12,7 +12,7 @@ pub mod types;
 pub use types::{DisplayInfo, DisplayProfile};
 
 #[cfg(target_os = "windows")]
-pub use apply::{apply_profile, validate_profile_safe};
+pub use apply::{apply_profile, sanitize_profile_for_group, validate_profile_safe};
 #[cfg(target_os = "windows")]
 pub use capture::capture_current_profile;
 #[cfg(target_os = "windows")]
