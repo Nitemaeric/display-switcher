@@ -4,10 +4,12 @@ use std::os::windows::ffi::OsStringExt;
 use windows::Win32::Devices::Display::{
     DisplayConfigGetDeviceInfo, GetDisplayConfigBufferSizes, QueryDisplayConfig,
     DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME, DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME,
-    DISPLAYCONFIG_DEVICE_INFO_HEADER, DISPLAYCONFIG_MODE_INFO, DISPLAYCONFIG_PATH_INFO,
-    DISPLAYCONFIG_SOURCE_DEVICE_NAME, DISPLAYCONFIG_TARGET_DEVICE_NAME, QDC_ALL_PATHS,
+    DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_PREFERRED_MODE, DISPLAYCONFIG_DEVICE_INFO_HEADER,
+    DISPLAYCONFIG_MODE_INFO, DISPLAYCONFIG_PATH_INFO, DISPLAYCONFIG_SOURCE_DEVICE_NAME,
+    DISPLAYCONFIG_TARGET_DEVICE_NAME, DISPLAYCONFIG_TARGET_PREFERRED_MODE, QDC_ALL_PATHS,
     QDC_VIRTUAL_MODE_AWARE, QUERY_DISPLAY_CONFIG_FLAGS,
 };
+use windows::Win32::Foundation::LUID;
 
 const QUERY_FLAGS: QUERY_DISPLAY_CONFIG_FLAGS =
     QUERY_DISPLAY_CONFIG_FLAGS(QDC_ALL_PATHS.0 | QDC_VIRTUAL_MODE_AWARE.0);
@@ -64,6 +66,23 @@ pub fn query_raw_config() -> Result<(Vec<DISPLAYCONFIG_PATH_INFO>, Vec<DISPLAYCO
     paths.truncate(path_count as usize);
     modes.truncate(mode_count as usize);
     Ok((paths, modes))
+}
+
+/// Queries a target's native mode; works for connected displays even while
+/// they are disabled in Windows.
+pub fn get_target_preferred_mode(
+    adapter_id: LUID,
+    target_id: u32,
+) -> Option<DISPLAYCONFIG_TARGET_PREFERRED_MODE> {
+    let mut preferred = DISPLAYCONFIG_TARGET_PREFERRED_MODE::default();
+    preferred.header = DISPLAYCONFIG_DEVICE_INFO_HEADER {
+        r#type: DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_PREFERRED_MODE,
+        size: std::mem::size_of::<DISPLAYCONFIG_TARGET_PREFERRED_MODE>() as u32,
+        adapterId: adapter_id,
+        id: target_id,
+    };
+    let result = unsafe { DisplayConfigGetDeviceInfo(&mut preferred.header) };
+    (result == 0).then_some(preferred)
 }
 
 pub fn get_source_name_for_path(path: &DISPLAYCONFIG_PATH_INFO) -> Option<String> {

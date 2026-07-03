@@ -80,8 +80,14 @@ function App() {
 
   const handleUpdateGroup = async (group: DisplayGroup) => {
     await api.updateGroup(group);
-    await reload();
-    setEditing((current) => (current?.id === group.id ? group : current));
+    try {
+      if (group.display_ids.length > 0) {
+        await api.saveGroupLayout(group.id);
+      }
+    } finally {
+      await reload();
+      setEditing((current) => (current?.id === group.id ? group : current));
+    }
   };
 
   const handleCreateGroup = async () => {

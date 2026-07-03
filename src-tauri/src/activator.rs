@@ -77,14 +77,37 @@ fn validate_and_apply_group(group: &DisplayGroup, profile_path: &Path) -> Result
 }
 
 pub fn save_group_layout(group: &DisplayGroup) -> Result<(), String> {
+    let path = resolve_profile_path(&group.profile_file);
+    if should_keep_existing_layout(&path, &group.display_ids) {
+        return Ok(());
+    }
+
     let mut profile = display::capture_current_profile()?;
     display::sanitize_profile_for_group(&mut profile, &group.display_ids)?;
+    display::activate_assigned_displays(&mut profile, &group.display_ids)?;
     display::validate_profile_safe(&profile, &group.display_ids)?;
-    let path = resolve_profile_path(&group.profile_file);
+    display::validate_profile_with_windows(&profile)?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let content = serde_json::to_string_pretty(&profile).map_err(|e| e.to_string())?;
     fs::write(path, content).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Recapturing while some assigned displays are off would replace a real,
+/// user-arranged layout with synthesized native-mode defaults. Keep the saved
+/// layout unless the live state can fully describe the group (all displays on)
+/// or the saved layout no longer covers the assigned displays.
+fn should_keep_existing_layout(profile_path: &Path, display_ids: &[String]) -> bool {
+    if display::displays_all_active(display_ids) {
+        return false;
+    }
+    let Ok(content) = fs::read_to_string(profile_path) else {
+        return false;
+    };
+    let Ok(profile) = serde_json::from_str::<DisplayProfile>(&content) else {
+        return false;
+    };
+    display::profile_covers_displays(&profile, display_ids)
 }

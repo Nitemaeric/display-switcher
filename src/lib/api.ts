@@ -66,7 +66,7 @@ export function formatGroupSummary(
   }
 
   if (!hasLayout) {
-    return `${assigned} assigned · capture layout to activate`;
+    return `${assigned} assigned · save the group to activate`;
   }
 
   return hotkey ? `${assigned} · ${hotkey}` : assigned;

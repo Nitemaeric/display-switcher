@@ -1,9 +1,12 @@
 use windows::Win32::Devices::Display::{
     SetDisplayConfig, DISPLAYCONFIG_MODE_INFO, DISPLAYCONFIG_MODE_INFO_TYPE_SOURCE,
-    DISPLAYCONFIG_PATH_INFO, SDC_ALLOW_CHANGES, SDC_APPLY, SDC_USE_SUPPLIED_DISPLAY_CONFIG,
-    SDC_VIRTUAL_MODE_AWARE,
+    DISPLAYCONFIG_MODE_INFO_TYPE_TARGET, DISPLAYCONFIG_PATH_INFO, DISPLAYCONFIG_PIXELFORMAT_32BPP,
+    DISPLAYCONFIG_SOURCE_MODE, SDC_ALLOW_CHANGES, SDC_APPLY, SDC_USE_SUPPLIED_DISPLAY_CONFIG,
+    SDC_VALIDATE, SDC_VIRTUAL_MODE_AWARE,
 };
+use windows::Win32::Foundation::POINTL;
 
+use super::capture::get_target_preferred_mode;
 use super::enumerate::list_displays;
 use super::remap::remap_profile;
 use super::types::{decode_structs, encode_structs, DisplayProfile, PathLabel};
@@ -25,10 +28,240 @@ pub fn validate_profile_safe(profile: &DisplayProfile, group_display_ids: &[Stri
     }
 
     Err(format!(
-        "None of this group's displays are turned on in the current Windows layout. \
-         In Windows Display Settings, enable {}, arrange them, then click Save layout again.",
+        "None of this group's displays are available. \
+         Make sure {} are connected, then click Save layout again.",
         assigned_labels.join(", ")
     ))
+}
+
+/// Turns on assigned displays that are connected but disabled in Windows so a
+/// group can be saved without activating its displays first. SetDisplayConfig
+/// refuses supplied paths without modes, so each activated path gets modes
+/// synthesized from the display's preferred (native) mode, placed to the right
+/// of the sources that are already on.
+pub fn activate_assigned_displays(
+    profile: &mut DisplayProfile,
+    group_display_ids: &[String],
+) -> Result<(), String> {
+    if group_display_ids.is_empty() {
+        return Ok(());
+    }
+
+    let mut paths: Vec<DISPLAYCONFIG_PATH_INFO> = decode_structs(&profile.paths_b64)?;
+    let mut modes: Vec<DISPLAYCONFIG_MODE_INFO> = decode_structs(&profile.modes_b64)?;
+    let assigned_labels = resolve_assigned_labels(group_display_ids);
+
+    let mut used_sources: Vec<((i32, u32), u32)> = Vec::new();
+    let mut used_targets: Vec<((i32, u32), u32)> = Vec::new();
+    for path in paths.iter().filter(|p| p.flags & PATH_ACTIVE != 0) {
+        used_sources.push(source_key(path));
+        used_targets.push(target_key(path));
+    }
+
+    let mut changed = false;
+
+    for (display_id, display_name) in group_display_ids.iter().zip(&assigned_labels) {
+        let already_active = paths.iter().enumerate().any(|(idx, path)| {
+            path.flags & PATH_ACTIVE != 0
+                && profile
+                    .path_labels
+                    .get(idx)
+                    .map_or(false, |label| candidate_score(label, display_id, display_name) > 0)
+        });
+        if already_active {
+            continue;
+        }
+
+        let Some(idx) = best_inactive_candidate(
+            &paths,
+            &profile.path_labels,
+            display_id,
+            display_name,
+            &used_sources,
+            &used_targets,
+        ) else {
+            continue;
+        };
+
+        activate_path_with_preferred_mode(&mut paths, idx, &mut modes).map_err(|e| {
+            format!("Could not turn on {display_name}: {e}")
+        })?;
+        used_sources.push(source_key(&paths[idx]));
+        used_targets.push(target_key(&paths[idx]));
+        changed = true;
+    }
+
+    if changed {
+        profile.paths_b64 = encode_structs(&paths);
+        profile.modes_b64 = encode_structs(&modes);
+    }
+    Ok(())
+}
+
+fn activate_path_with_preferred_mode(
+    paths: &mut [DISPLAYCONFIG_PATH_INFO],
+    idx: usize,
+    modes: &mut Vec<DISPLAYCONFIG_MODE_INFO>,
+) -> Result<(), String> {
+    let path = paths[idx];
+    let preferred = get_target_preferred_mode(path.targetInfo.adapterId, path.targetInfo.id)
+        .ok_or_else(|| "the display did not report a preferred mode".to_string())?;
+
+    let next_x = active_sources_right_edge(paths, modes);
+
+    let target_mode_idx = modes.len() as u32;
+    let mut target_mode = DISPLAYCONFIG_MODE_INFO::default();
+    target_mode.infoType = DISPLAYCONFIG_MODE_INFO_TYPE_TARGET;
+    target_mode.id = path.targetInfo.id;
+    target_mode.adapterId = path.targetInfo.adapterId;
+    target_mode.Anonymous.targetMode = preferred.targetMode;
+    modes.push(target_mode);
+
+    let source_mode_idx = modes.len() as u32;
+    let mut source_mode = DISPLAYCONFIG_MODE_INFO::default();
+    source_mode.infoType = DISPLAYCONFIG_MODE_INFO_TYPE_SOURCE;
+    source_mode.id = path.sourceInfo.id;
+    source_mode.adapterId = path.sourceInfo.adapterId;
+    source_mode.Anonymous.sourceMode = DISPLAYCONFIG_SOURCE_MODE {
+        width: preferred.width,
+        height: preferred.height,
+        pixelFormat: DISPLAYCONFIG_PIXELFORMAT_32BPP,
+        position: POINTL { x: next_x, y: 0 },
+    };
+    modes.push(source_mode);
+
+    // Virtual-mode-aware index layout: source mode index in the high word over
+    // an invalid clone group id; target mode index in the high word over an
+    // invalid desktop image index.
+    let path = &mut paths[idx];
+    path.flags |= PATH_ACTIVE;
+    path.sourceInfo.Anonymous.modeInfoIdx = (source_mode_idx << 16) | 0xffff;
+    path.targetInfo.Anonymous.modeInfoIdx = (target_mode_idx << 16) | 0xffff;
+    path.targetInfo.refreshRate = preferred.targetMode.targetVideoSignalInfo.vSyncFreq;
+    path.targetInfo.scanLineOrdering = preferred.targetMode.targetVideoSignalInfo.scanLineOrdering;
+    Ok(())
+}
+
+fn active_sources_right_edge(
+    paths: &[DISPLAYCONFIG_PATH_INFO],
+    modes: &[DISPLAYCONFIG_MODE_INFO],
+) -> i32 {
+    paths
+        .iter()
+        .filter(|path| path.flags & PATH_ACTIVE != 0)
+        .filter_map(source_mode_index)
+        .filter_map(|idx| {
+            let mode = modes.get(idx)?;
+            if mode.infoType != DISPLAYCONFIG_MODE_INFO_TYPE_SOURCE {
+                return None;
+            }
+            let source = unsafe { mode.Anonymous.sourceMode };
+            Some(source.position.x + source.width as i32)
+        })
+        .max()
+        .unwrap_or(0)
+}
+
+fn source_key(path: &DISPLAYCONFIG_PATH_INFO) -> ((i32, u32), u32) {
+    let luid = path.sourceInfo.adapterId;
+    ((luid.HighPart, luid.LowPart), path.sourceInfo.id)
+}
+
+fn target_key(path: &DISPLAYCONFIG_PATH_INFO) -> ((i32, u32), u32) {
+    let luid = path.targetInfo.adapterId;
+    ((luid.HighPart, luid.LowPart), path.targetInfo.id)
+}
+
+/// A monitor-name match outranks a GDI source-name match: in QDC_ALL_PATHS
+/// every source pairs with every target, so a GDI name alone can point at the
+/// wrong monitor.
+fn candidate_score(label: &PathLabel, display_id: &str, display_name: &str) -> u32 {
+    let gdi = u32::from(label.gdi_device_name == display_id);
+    let name = u32::from(names_match(&label.target_device_name, display_name));
+    name * 2 + gdi
+}
+
+fn best_inactive_candidate(
+    paths: &[DISPLAYCONFIG_PATH_INFO],
+    labels: &[PathLabel],
+    display_id: &str,
+    display_name: &str,
+    used_sources: &[((i32, u32), u32)],
+    used_targets: &[((i32, u32), u32)],
+) -> Option<usize> {
+    let mut best: Option<(u32, usize)> = None;
+
+    for (idx, path) in paths.iter().enumerate() {
+        if path.flags & PATH_ACTIVE != 0 || path.targetInfo.targetAvailable.0 == 0 {
+            continue;
+        }
+        if used_sources.contains(&source_key(path)) || used_targets.contains(&target_key(path)) {
+            continue;
+        }
+        let Some(label) = labels.get(idx) else {
+            continue;
+        };
+        let score = candidate_score(label, display_id, display_name);
+        if score > 0 && best.map_or(true, |(best_score, _)| score > best_score) {
+            best = Some((score, idx));
+        }
+    }
+
+    best.map(|(_, idx)| idx)
+}
+
+/// True when this profile turns on every assigned display.
+pub fn profile_covers_displays(profile: &DisplayProfile, group_display_ids: &[String]) -> bool {
+    if group_display_ids.is_empty() {
+        return false;
+    }
+    let Ok(paths) = decode_structs::<DISPLAYCONFIG_PATH_INFO>(&profile.paths_b64) else {
+        return false;
+    };
+    let assigned_labels = resolve_assigned_labels(group_display_ids);
+    group_display_ids
+        .iter()
+        .zip(&assigned_labels)
+        .all(|(id, name)| {
+            paths.iter().enumerate().any(|(idx, path)| {
+                path.flags & PATH_ACTIVE != 0
+                    && profile
+                        .path_labels
+                        .get(idx)
+                        .map_or(false, |label| candidate_score(label, id, name) > 0)
+            })
+        })
+}
+
+/// True when every assigned display is currently turned on in Windows.
+pub fn displays_all_active(group_display_ids: &[String]) -> bool {
+    if group_display_ids.is_empty() {
+        return false;
+    }
+    let displays = list_displays().unwrap_or_default();
+    group_display_ids.iter().all(|id| {
+        displays
+            .iter()
+            .any(|display| &display.id == id && display.is_active)
+    })
+}
+
+/// Asks Windows to validate the layout without applying it, so a bad save
+/// fails at save time instead of on the first activation.
+pub fn validate_profile_with_windows(profile: &DisplayProfile) -> Result<(), String> {
+    let (paths, modes) = prepare_for_apply(profile)?;
+    let flags = SDC_VALIDATE
+        | SDC_USE_SUPPLIED_DISPLAY_CONFIG
+        | SDC_ALLOW_CHANGES
+        | SDC_VIRTUAL_MODE_AWARE;
+    let result = unsafe { SetDisplayConfig(Some(&paths), Some(&modes), flags) };
+    if result != 0 {
+        return Err(format!(
+            "Windows rejected this layout (code {result}). \
+             Turn the group's displays on, arrange them in Windows Display Settings, and save again."
+        ));
+    }
+    Ok(())
 }
 
 fn resolve_assigned_labels(group_display_ids: &[String]) -> Vec<String> {
@@ -195,6 +428,9 @@ mod tests {
         unsafe { SetDisplayConfig(Some(paths), Some(modes), flags) }
     }
 
+    /// Recreates the original error-87 shape — an active desktop with no
+    /// source at (0,0) — by shifting the sanitized TV profile off origin, then
+    /// checks that re-origining restores a primary and Windows accepts it.
     #[test]
     fn sanitized_tv_profile_validates_after_reorigin() {
         let base = std::env::var("APPDATA").expect("APPDATA");
@@ -203,13 +439,84 @@ mod tests {
         let mut profile: DisplayProfile = serde_json::from_str(&content).expect("parse profile");
         sanitize_profile_for_group(&mut profile, &["\\\\.\\DISPLAY1".to_string()]).expect("sanitize");
 
-        let mut paths = decode_structs(&profile.paths_b64).expect("decode paths");
-        let mut modes = decode_structs(&profile.modes_b64).expect("decode modes");
+        let mut paths: Vec<DISPLAYCONFIG_PATH_INFO> =
+            decode_structs(&profile.paths_b64).expect("decode paths");
+        let mut modes: Vec<DISPLAYCONFIG_MODE_INFO> =
+            decode_structs(&profile.modes_b64).expect("decode modes");
         remap_profile(&mut paths, &mut modes).expect("remap");
-        assert_eq!(validate_config(&paths, &modes), 87, "expected raw profile to fail");
 
-        let (paths, modes) = prepare_for_apply(&profile).expect("prepare");
+        for mode in modes.iter_mut() {
+            if mode.infoType == DISPLAYCONFIG_MODE_INFO_TYPE_SOURCE {
+                let pos = unsafe { &mut mode.Anonymous.sourceMode.position };
+                pos.x -= 3840;
+                pos.y += 500;
+            }
+        }
+
+        reorigin_active_sources(&paths, &mut modes);
+
+        let origin_restored = paths
+            .iter()
+            .filter(|path| path.flags & PATH_ACTIVE != 0)
+            .filter_map(source_mode_index)
+            .any(|idx| {
+                let pos = unsafe { modes[idx].Anonymous.sourceMode.position };
+                pos.x == 0 && pos.y == 0
+            });
+        assert!(origin_restored, "expected an active source back at (0,0)");
+
         assert_eq!(validate_config(&paths, &modes), 0, "expected re-origined profile to pass");
+    }
+
+    /// Simulates saving the TV group from the live Windows state, whatever it
+    /// currently is: sanitize deactivates non-group paths, activation turns the
+    /// TV back on (mode-less if it is currently disabled), and Windows must
+    /// accept the result.
+    #[test]
+    fn save_pipeline_handles_inactive_group_displays() {
+        use super::super::capture::capture_current_profile;
+
+        let tv_display_ids = vec!["\\\\.\\DISPLAY1".to_string()];
+        let mut profile = capture_current_profile().expect("capture");
+        sanitize_profile_for_group(&mut profile, &tv_display_ids).expect("sanitize");
+        activate_assigned_displays(&mut profile, &tv_display_ids).expect("activate");
+
+        let paths: Vec<DISPLAYCONFIG_PATH_INFO> =
+            decode_structs(&profile.paths_b64).expect("decode paths");
+        let active_targets: Vec<&str> = paths
+            .iter()
+            .enumerate()
+            .filter(|(_, path)| path.flags & PATH_ACTIVE != 0)
+            .filter_map(|(idx, _)| profile.path_labels.get(idx))
+            .map(|label| label.target_device_name.as_str())
+            .collect();
+        assert!(
+            active_targets.iter().any(|name| name.contains("SAMSUNG")),
+            "expected the TV to be activated, got {active_targets:?}"
+        );
+
+        validate_profile_with_windows(&profile).expect("windows validate");
+    }
+
+    #[test]
+    fn profile_coverage_matches_active_paths() {
+        let base = std::env::var("APPDATA").expect("APPDATA");
+        let path = format!("{base}\\display-switcher\\profiles\\3ef0f17c-7a54-4f28-905b-8651d1414e20.json");
+        let content = fs::read_to_string(&path).expect("read profile");
+        let profile: DisplayProfile = serde_json::from_str(&content).expect("parse profile");
+
+        let desktop_ids = vec!["\\\\.\\DISPLAY2".to_string(), "\\\\.\\DISPLAY3".to_string()];
+        assert!(profile_covers_displays(&profile, &desktop_ids));
+
+        let with_tv = vec![
+            "\\\\.\\DISPLAY1".to_string(),
+            "\\\\.\\DISPLAY2".to_string(),
+            "\\\\.\\DISPLAY3".to_string(),
+        ];
+        assert!(
+            !profile_covers_displays(&profile, &with_tv),
+            "desktop profile should not cover the inactive TV"
+        );
     }
 
     #[test]
