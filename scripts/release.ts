@@ -64,6 +64,18 @@ function setTauriConf(version: string) {
   writeFileSync(path, `${JSON.stringify(conf, null, 2)}\n`);
 }
 
+function syncCargoLock() {
+  const result = spawnSync(
+    "cargo",
+    ["update", "--workspace", "--manifest-path", join(root, "src-tauri", "Cargo.toml")],
+    { cwd: root, stdio: "inherit" },
+  );
+
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
+}
+
 // No shell: on Windows a shell re-splits arguments containing spaces, which
 // turns commit messages like "Release v0.2.1" into stray pathspecs.
 function git(...args: string[]) {
@@ -110,8 +122,9 @@ console.log(`Bumping ${currentVersion} -> ${nextVersion}`);
 setPackageJson(nextVersion);
 setCargoToml(nextVersion);
 setTauriConf(nextVersion);
+syncCargoLock();
 
-git("add", "package.json", "src-tauri/Cargo.toml", "src-tauri/tauri.conf.json");
+git("add", "package.json", "src-tauri/Cargo.toml", "src-tauri/Cargo.lock", "src-tauri/tauri.conf.json");
 git("commit", "-m", `Release ${tag}`);
 git("tag", "-a", tag, "-m", `Release ${tag}`);
 
