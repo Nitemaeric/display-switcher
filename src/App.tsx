@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { GroupEditor } from "@/components/GroupEditor";
 import { TelemetryPanel } from "@/components/TelemetryPanel";
 import { OnboardingWizard } from "@/components/OnboardingWizard";
+import { VersionFooter } from "@/components/VersionFooter";
 
 type Tab = "groups" | "settings";
 
@@ -121,18 +122,21 @@ function App() {
 
   if (editing) {
     return (
-      <div className="min-h-screen p-3">
-        <div className="mx-auto max-w-2xl">
-          <h2 className="mb-3 text-xl font-semibold">Edit group</h2>
-          <GroupEditor
-            group={editing}
-            displays={displays}
-            builtinActions={builtinActions}
-            gamepadButtons={gamepadButtons}
-            onSave={handleUpdateGroup}
-            onClose={() => setEditing(null)}
-          />
+      <div className="flex min-h-screen flex-col">
+        <div className="flex-1 p-3">
+          <div className="mx-auto max-w-2xl">
+            <h2 className="mb-3 text-xl font-semibold">Edit group</h2>
+            <GroupEditor
+              group={editing}
+              displays={displays}
+              builtinActions={builtinActions}
+              gamepadButtons={gamepadButtons}
+              onSave={handleUpdateGroup}
+              onClose={() => setEditing(null)}
+            />
+          </div>
         </div>
+        <VersionFooter />
         <Toaster richColors position="bottom-right" />
       </div>
     );
@@ -333,6 +337,7 @@ function App() {
         </div>
       </main>
 
+      <VersionFooter />
       <Toaster richColors position="bottom-right" />
     </div>
   );
