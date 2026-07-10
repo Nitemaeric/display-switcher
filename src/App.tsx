@@ -122,21 +122,23 @@ function App() {
 
   if (editing) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <div className="flex-1 p-3">
-          <div className="mx-auto max-w-2xl">
-            <h2 className="mb-3 text-xl font-semibold">Edit group</h2>
-            <GroupEditor
-              group={editing}
-              displays={displays}
-              builtinActions={builtinActions}
-              gamepadButtons={gamepadButtons}
-              onSave={handleUpdateGroup}
-              onClose={() => setEditing(null)}
-            />
+      <div className="h-screen overflow-y-auto [scrollbar-gutter:stable]">
+        <div className="flex min-h-full flex-col">
+          <div className="flex-1 p-3">
+            <div className="mx-auto max-w-2xl">
+              <h2 className="mb-3 text-xl font-semibold">Edit group</h2>
+              <GroupEditor
+                group={editing}
+                displays={displays}
+                builtinActions={builtinActions}
+                gamepadButtons={gamepadButtons}
+                onSave={handleUpdateGroup}
+                onClose={() => setEditing(null)}
+              />
+            </div>
           </div>
+          <VersionFooter />
         </div>
-        <VersionFooter />
         <Toaster richColors position="bottom-right" />
       </div>
     );
@@ -171,10 +173,11 @@ function App() {
         </div>
       </header>
 
-      <main className="flex min-h-0 flex-1 flex-col">
-        <div className="mx-auto flex w-full max-w-4xl min-h-0 flex-1 flex-col">
+      <main className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+        <div className="flex min-h-full flex-col">
+        <div className="mx-auto w-full max-w-4xl flex-1">
         {tab === "groups" ? (
-            <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+            <>
             <div className="sticky top-0 z-10 flex items-center justify-between bg-[var(--color-background)] px-3 py-3">
               <h2 className="text-base font-medium">Display groups</h2>
               <Button className="shrink-0" onClick={handleCreateGroup}>
@@ -260,9 +263,8 @@ function App() {
               </div>
             )}
             </div>
-            </div>
+            </>
         ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
             <div className="w-full space-y-3 px-3 py-3">
             <section className="form-section">
               <h2 className="text-base font-medium">Appearance</h2>
@@ -332,12 +334,12 @@ function App() {
               <TelemetryPanel />
             </section>
             </div>
-          </div>
         )}
+        </div>
+        <VersionFooter />
         </div>
       </main>
 
-      <VersionFooter />
       <Toaster richColors position="bottom-right" />
     </div>
   );

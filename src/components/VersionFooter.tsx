@@ -11,7 +11,7 @@ export function VersionFooter() {
   }, []);
 
   return (
-    <footer className="shrink-0 border-t border-[var(--color-card-border)] px-3 py-2 text-center text-xs text-[var(--color-muted)]">
+    <footer className="shrink-0 px-3 py-3 text-center text-xs text-[var(--color-muted)]">
       Display Switcher{version ? ` v${version}` : ""}
     </footer>
   );
