@@ -64,11 +64,12 @@ function setTauriConf(version: string) {
   writeFileSync(path, `${JSON.stringify(conf, null, 2)}\n`);
 }
 
+// No shell: on Windows a shell re-splits arguments containing spaces, which
+// turns commit messages like "Release v0.2.1" into stray pathspecs.
 function git(...args: string[]) {
   const result = spawnSync("git", args, {
     cwd: root,
     stdio: "inherit",
-    shell: process.platform === "win32",
   });
 
   if (result.status !== 0) {
@@ -80,7 +81,6 @@ function currentBranch(): string {
   const result = spawnSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
     cwd: root,
     encoding: "utf8",
-    shell: process.platform === "win32",
   });
 
   if (result.status !== 0 || !result.stdout?.trim()) {
@@ -98,7 +98,6 @@ const tag = `v${nextVersion}`;
 const tagExists = spawnSync("git", ["rev-parse", tag], {
   cwd: root,
   stdio: "ignore",
-  shell: process.platform === "win32",
 });
 
 if (tagExists.status === 0) {
